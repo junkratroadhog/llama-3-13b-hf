@@ -10,29 +10,48 @@ pipeline {
         VOLUME_NAME = "llama_volume"
     }
 
-    stages {
-        stage('Check NVIDIA Driver') {
+        stage('Check NVIDIA Driver on Host') {
             steps {
-                script {
-                    def status = sh(script: "command -v nvidia-smi", returnStatus: true)
-                    if (status != 0) {
-                        error "❌ NVIDIA driver not found on host. Install NVIDIA driver before proceeding."
-                    }
-                    sh "nvidia-smi"
-                }
+                sh """
+                    if ! command -v nvidia-smi &> /dev/null
+                    then
+                        echo "❌ NVIDIA driver not found on host"
+                        exit 1
+                    fi
+                    nvidia-smi
+                """
             }
         }
 
         stage('Check GPU Docker Support') {
             steps {
-                script {
-                    def gpuCheck = sh(script: "docker run --rm --gpus all nvidia/cuda:11.7.1-base-ubuntu22.04 nvidia-smi", returnStatus: true)
-                    if (gpuCheck != 0) {
-                        error "❌ Docker cannot access GPU. Install and configure NVIDIA Container Toolkit."
-                    }
-                }
+                sh """
+                echo "Checking if Docker can access GPU..."
+                if ! docker run --rm --gpus all nvidia/cuda:11.7.1-base-ubuntu22.04 nvidia-smi &> /dev/null; then
+                    echo "⚠️ Docker cannot access GPU. Installing NVIDIA Container Toolkit..."
+                    
+                    # Add NVIDIA package repositories
+                    distribution=\$(. /etc/os-release;echo \$ID\$VERSION_ID)
+                    curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+                    curl -s -L https://nvidia.github.io/nvidia-docker/\$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+                    
+                    # Install the toolkit
+                    sudo apt update
+                    sudo apt install -y nvidia-docker2
+                    
+                    # Reload Docker daemon
+                    sudo systemctl restart docker
+                    
+                    echo "Retrying GPU check..."
+                    docker run --rm --gpus all nvidia/cuda:11.7.1-base-ubuntu22.04 nvidia-smi || \
+                    { echo "❌ Docker still cannot access GPU. Aborting."; exit 1; }
+                else
+                    echo "✅ Docker can access GPU."
+                fi
+                """
             }
         }
+
 
         stage('Cleanup Existing Deployment') {
             steps {
