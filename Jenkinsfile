@@ -10,6 +10,8 @@ pipeline {
         VOLUME_NAME = "llama_volume"
     }
 
+    stages {
+        
         stage('Check NVIDIA Driver on Host') {
             steps {
                 sh """
@@ -137,7 +139,7 @@ pipeline {
             }
         }
     }
-
+    
     post {
         success {
             echo "✅ Deployment succeeded!"
