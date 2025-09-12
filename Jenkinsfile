@@ -12,19 +12,6 @@ pipeline {
 
     stages {
         
-        stage('Check NVIDIA Driver on Host') {
-            steps {
-                sh """
-                    if ! command -v nvidia-smi &> /dev/null
-                    then
-                        echo "❌ NVIDIA driver not found on host"
-                        exit 1
-                    fi
-                    nvidia-smi
-                """
-            }
-        }
-
         stage('Check GPU Docker Support') {
             steps {
                 sh """
@@ -139,7 +126,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         success {
             echo "✅ Deployment succeeded!"
