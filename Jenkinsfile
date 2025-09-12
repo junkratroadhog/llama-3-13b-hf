@@ -16,17 +16,6 @@ pipeline {
             }
         }
 
-        stage('Download LLaMA Model') {
-            steps {
-                sh '''
-                git lfs install || true
-                if [ ! -d "$MODEL_PATH" ]; then
-                    git clone https://huggingface.co/meta-llama/Llama-3-13b-hf $MODEL_PATH
-                fi
-                '''
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 sh """
