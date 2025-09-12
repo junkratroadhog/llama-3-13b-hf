@@ -3,7 +3,6 @@ pipeline {
     environment {
         DOCKER_IMAGE = 'llama13-local:latest'
         DOCKER_CONTAINER = 'llama13-server'
-        MODEL_PATH = '/workspace/Llama-3-13b-hf'
         API_PORT = '11434'
         GIT_REPO = 'https://github.com/junkratroadhog/llama-3-13b-hf.git'
         GIT_BRANCH = 'main'
@@ -20,7 +19,6 @@ pipeline {
             steps {
                 sh """
                 docker build \
-                    --build-arg MODEL_PATH=$MODEL_PATH \
                     --build-arg API_PORT=$API_PORT \
                     -t $DOCKER_IMAGE .
                 """
@@ -40,21 +38,11 @@ pipeline {
         stage('Test API') {
             steps {
                 sh """
-                sleep 5
                 curl -X POST http://localhost:$API_PORT/generate \
                      -H "Content-Type: application/json" \
                      -d '{"prompt": "Write a Python function to reverse a string."}'
                 """
             }
-        }
-    }
-
-    post {
-        success {
-            echo "🚀 Deployment completed successfully!"
-        }
-        failure {
-            echo "❌ Deployment failed. Check logs."
         }
     }
 }
