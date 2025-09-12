@@ -1,25 +1,24 @@
 #!/bin/bash
 set -e
 
-MODEL_PATH=${MODEL_PATH:-"/workspace/Llama-3-13b-hf"}
-HF_TOKEN=${HF_TOKEN:-""}
+# Variables
+MODEL_PATH="${MODEL_PATH:-/workspace/Llama-3-13b-hf}"  # Use env var if provided
+HF_TOKEN="${HF_TOKEN:?HF_TOKEN must be set}"          # Fail if HF_TOKEN not provided
 
-# Ensure git-lfs is initialized
+# Make sure Git LFS is initialized
 git lfs install
 
-# Login to Hugging Face (non-interactive)
-if [ ! -z "$HF_TOKEN" ]; then
-    huggingface-cli login --token "$HF_TOKEN"
-fi
+# Check if folder is already a git repo
+if [ ! -d "$MODEL_PATH/.git" ]; then
+    echo "Logging in to Hugging Face..."
+    hf auth login --token "$HF_TOKEN"
 
-# Clone repo if not exists
-if [ ! -d "$MODEL_PATH" ]; then
-    echo "Cloning LLaMA model repository..."
+    echo "Cloning LLaMA repository..."
     GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/meta-llama/Llama-3-13b-hf "$MODEL_PATH"
 fi
 
-# Pull actual LFS files into the volume
-echo "Pulling LFS files into $MODEL_PATH..."
+# Pull LFS files
+echo "Pulling LFS files..."
 cd "$MODEL_PATH"
 git lfs pull
 
