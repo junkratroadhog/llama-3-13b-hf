@@ -13,7 +13,7 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                git branch:  ${env.GIT_BRANCH}, url: "${env.GIT_REPO}"
+                git branch:  "${env.GIT_BRANCH}", url: "${env.GIT_REPO}"
             }
         }
 
