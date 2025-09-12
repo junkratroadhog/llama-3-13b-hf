@@ -9,6 +9,29 @@ pipeline {
     }
 
     stages {
+        stage('Check NVIDIA Driver') {
+            steps {
+                script {
+                    def status = sh(script: "command -v nvidia-smi", returnStatus: true)
+                    if (status != 0) {
+                        error "❌ NVIDIA driver not found on host. Install NVIDIA driver before proceeding."
+                    }
+                    sh "nvidia-smi"
+                }
+            }
+        }
+
+        stage('Check GPU Docker Support') {
+            steps {
+                script {
+                    def gpuCheck = sh(script: "docker run --rm --gpus all nvidia/cuda:11.7.1-base-ubuntu22.04 nvidia-smi", returnStatus: true)
+                    if (gpuCheck != 0) {
+                        error "❌ Docker cannot access GPU. Install and configure NVIDIA Container Toolkit."
+                    }
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -35,16 +58,16 @@ pipeline {
             }
         }
 
-        stage('Download Model') {
+        stage('Download LLaMA Model') {
             steps {
                 withCredentials([string(credentialsId: 'HF_TOKEN', variable: 'HF_TOKEN')]) {
                     sh """
                         docker exec -i ${CONTAINER_NAME} bash -c '
                             git lfs install
                             if [ ! -d "${MODEL_PATH}" ]; then
-                                echo "Logging in to Hugging Face"
+                                echo "Logging in to Hugging Face..."
                                 huggingface-cli login --token $HF_TOKEN
-                                echo "Cloning model repo..."
+                                echo "Cloning LLaMA model repository..."
                                 GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/meta-llama/Llama-3-13b-hf ${MODEL_PATH}
                                 cd ${MODEL_PATH} && git lfs pull
                             fi
