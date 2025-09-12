@@ -2,12 +2,13 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "llama-fastapi"
-        CONTAINER_NAME = "llama_api"
-        MODEL_PATH = "/workspace/Llama-3-13b-hf"
-        API_PORT = "11434"
-        NETWORK_NAME = "llama_network"
-        VOLUME_NAME = "llama_volume"
+        IMAGE_NAME      = "llama-fastapi"
+        CONTAINER_NAME  = "llama_api"
+        MODEL_PATH      = "/workspace/Llama-3-13b-hf"
+        API_PORT        = "11434"
+        NETWORK_NAME    = "llama_network"
+        VOLUME_NAME     = "llama_volume"
+        HF_TOKEN_ID     = "HF_TOKEN" // Jenkins credentials ID
     }
 
     stages {
@@ -48,59 +49,43 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                    docker build -t ${IMAGE_NAME} .
-                """
+                sh "docker build -t ${IMAGE_NAME} ."
             }
         }
 
         stage('Run Container') {
             steps {
-                sh """
-                    docker run -d --gpus all \
-                        --name ${CONTAINER_NAME} \
-                        --network ${NETWORK_NAME} \
-                        -v ${VOLUME_NAME}:${MODEL_PATH} \
-                        -p ${API_PORT}:${API_PORT} \
-                        ${IMAGE_NAME}
-                """
-            }
-        }
-
-        stage('Download LLaMA Model') {
-            steps {
-                withCredentials([string(credentialsId: 'HF_TOKEN', variable: 'HF_TOKEN')]) {
+                withCredentials([string(credentialsId: "${HF_TOKEN_ID}", variable: 'HF_TOKEN')]) {
                     sh """
-                        docker exec -i ${CONTAINER_NAME} bash -c '
-                            git lfs install
-                            if [ ! -d "${MODEL_PATH}" ]; then
-                                echo "Logging in to Hugging Face..."
-                                huggingface-cli login --token $HF_TOKEN
-                                echo "Cloning LLaMA model repository..."
-                                GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/meta-llama/Llama-3-13b-hf ${MODEL_PATH}
-                                cd ${MODEL_PATH} && git lfs pull
-                            fi
-                        '
+                        docker run -d --gpus all \
+                            --name ${CONTAINER_NAME} \
+                            --network ${NETWORK_NAME} \
+                            -v ${VOLUME_NAME}:${MODEL_PATH} \
+                            -e HF_TOKEN=${HF_TOKEN} \
+                            -p ${API_PORT}:${API_PORT} \
+                            ${IMAGE_NAME}
                     """
                 }
             }
         }
 
-        stage('Test API') {
+        stage('Wait for Model & API') {
             steps {
                 sh """
-                echo "Waiting for FastAPI endpoint..."
-                for i in {1..30}; do
-                    curl -f http://localhost:${API_PORT}/docs && break
-                    echo "Waiting..."
-                    sleep 2
-                done
-                curl -f http://localhost:${API_PORT}/docs || (echo "API test failed" && exit 1)
+                    echo "Waiting for FastAPI endpoint..."
+                    for i in {1..60}; do
+                        if curl -sf http://localhost:${API_PORT}/docs; then
+                            echo "FastAPI is up!"
+                            break
+                        fi
+                        echo "Waiting..."
+                        sleep 5
+                    done
                 """
             }
         }
     }
-    
+
     post {
         success {
             echo "✅ Deployment succeeded!"
@@ -110,8 +95,8 @@ pipeline {
             echo "❌ Deployment failed. Check logs."
         }
 
-        always{
-        cleanWs()
+        always {
+            cleanWs()
         }
     }
 }

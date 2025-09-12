@@ -15,14 +15,16 @@ RUN git lfs install
 # Set working directory
 WORKDIR /workspace
 
-# Install Python dependencies
+# Copy Python dependencies and app server
 COPY requirements.txt /workspace/requirements.txt
 RUN pip3 install --no-cache-dir -r /workspace/requirements.txt
-
-# Copy app server
 COPY app.py /workspace/app.py
+
+# Copy runtime model download script
+COPY download_model.sh /workspace/download_model.sh
+RUN chmod +x /workspace/download_model.sh
 
 EXPOSE $API_PORT
 
-# Run FastAPI with uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "11434"]
+# Run download script at container start
+CMD ["/workspace/download_model.sh"]
