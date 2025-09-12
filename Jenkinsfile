@@ -6,6 +6,8 @@ pipeline {
         CONTAINER_NAME = "llama_api"
         MODEL_PATH = "/workspace/Llama-3-13b-hf"
         API_PORT = "11434"
+        NETWORK_NAME = "llama_network"
+        VOLUME_NAME = "llama_volume"
     }
 
     stages {
@@ -32,6 +34,34 @@ pipeline {
             }
         }
 
+        stage('Cleanup Existing Deployment') {
+            steps {
+                sh """
+                    # Remove existing container if exists
+                    if [ \$(docker ps -a -q -f name=${CONTAINER_NAME}) ]; then
+                        echo "Removing existing container ${CONTAINER_NAME}..."
+                        docker rm -f ${CONTAINER_NAME}
+                    fi
+
+                    # Remove Docker volume if exists
+                    if [ \$(docker volume ls -q -f name=${VOLUME_NAME}) ]; then
+                        echo "Removing existing volume ${VOLUME_NAME}..."
+                        docker volume rm ${VOLUME_NAME}
+                    fi
+
+                    # Remove Docker network if exists
+                    if [ \$(docker network ls -q -f name=${NETWORK_NAME}) ]; then
+                        echo "Removing existing network ${NETWORK_NAME}..."
+                        docker network rm ${NETWORK_NAME}
+                    fi
+
+                    # Recreate network and volume
+                    docker network create ${NETWORK_NAME} || true
+                    docker volume create ${VOLUME_NAME} || true
+                """
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -49,9 +79,10 @@ pipeline {
         stage('Run Container') {
             steps {
                 sh """
-                    docker rm -f ${CONTAINER_NAME} || true
                     docker run -d --gpus all \
                         --name ${CONTAINER_NAME} \
+                        --network ${NETWORK_NAME} \
+                        -v ${VOLUME_NAME}:${MODEL_PATH} \
                         -p ${API_PORT}:${API_PORT} \
                         ${IMAGE_NAME}
                 """
