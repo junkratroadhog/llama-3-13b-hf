@@ -12,21 +12,6 @@ pipeline {
 
     stages {
         
-        stage('Check NVIDIA Driver on Host') {
-            steps {
-                script {
-                    def status = sh(script: """
-                        docker run --rm --gpus all nvidia/cuda:11.7.1-base-ubuntu22.04 \
-                        bash -c 'command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi'
-                    """, returnStatus: true)
-
-                    if (status != 0) {
-                        error "❌ NVIDIA driver not accessible from Docker. Install host NVIDIA driver + NVIDIA Container Toolkit."
-                    }
-                }
-            }
-        }
-
         stage('Check GPU Docker Support') {
             steps {
                 sh """
