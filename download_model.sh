@@ -1,23 +1,26 @@
 #!/bin/bash
 set -e
 
-MODEL_PATH="/workspace/Llama-3-13b-hf"
-HF_TOKEN="${HF_TOKEN}"
+MODEL_PATH=${MODEL_PATH:-"/workspace/Llama-3-13b-hf"}
+HF_TOKEN=${HF_TOKEN:-""}
 
-# If the model is already downloaded, skip
-if [ ! -d "$MODEL_PATH" ]; then
-    echo "Logging in to Hugging Face..."
-    huggingface-cli login --token $HF_TOKEN
+# Ensure git-lfs is initialized
+git lfs install
 
-    echo "Cloning LLaMA model repository..."
-    GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/meta-llama/Llama-3-13b-hf "$MODEL_PATH"
-    
-    echo "Pulling LFS files..."
-    cd "$MODEL_PATH"
-    git lfs pull
-else
-    echo "Model already exists at $MODEL_PATH, skipping download."
+# Login to Hugging Face (non-interactive)
+if [ ! -z "$HF_TOKEN" ]; then
+    huggingface-cli login --token "$HF_TOKEN"
 fi
 
-# Start FastAPI
-uvicorn app:app --host 0.0.0.0 --port 11434
+# Clone repo if not exists
+if [ ! -d "$MODEL_PATH" ]; then
+    echo "Cloning LLaMA model repository..."
+    GIT_LFS_SKIP_SMUDGE=1 git clone https://huggingface.co/meta-llama/Llama-3-13b-hf "$MODEL_PATH"
+fi
+
+# Pull actual LFS files into the volume
+echo "Pulling LFS files into $MODEL_PATH..."
+cd "$MODEL_PATH"
+git lfs pull
+
+echo "Model download completed!"

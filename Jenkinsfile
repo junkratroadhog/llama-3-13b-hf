@@ -53,6 +53,21 @@ pipeline {
             }
         }
 
+        stage('Download LLaMA Model') {
+            steps {
+                withCredentials([string(credentialsId: "${HF_TOKEN_ID}", variable: 'HF_TOKEN')]) {
+                    sh """
+                    docker run --rm \
+                        --gpus all \
+                        -v ${VOLUME_NAME}:${MODEL_PATH} \
+                        -e HF_TOKEN=$HF_TOKEN \
+                        ${IMAGE_NAME} \
+                        /workspace/download_model.sh
+                    """
+                }
+            }
+        }
+
         stage('Run Container') {
             steps {
                 withCredentials([string(credentialsId: "${HF_TOKEN_ID}", variable: 'HF_TOKEN')]) {
