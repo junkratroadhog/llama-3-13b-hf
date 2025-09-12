@@ -1,0 +1,12 @@
+{
+  "train": [
+    {
+      "prompt": "Write a Python function to reverse a string.",
+      "completion": "def reverse_string(s):\n    return s[::-1]"
+    },
+    {
+      "prompt": "Create a function to check if a number is prime.",
+      "completion": "def is_prime(n):\n    if n <= 1: return False\n    for i in range(2, int(n**0.5)+1):\n        if n % i == 0: return False\n    return True"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+pipeline {
+    agent any
+    environment {
+        DOCKER_CONTAINER = 'llama13-server'
+        MODEL_PATH = '/workspace/Llama-3-13b-hf'
+        LORA_PATH = '/workspace/lora_weights'
+        LOG_FILE = '/workspace/logged_prompts.json'
+        LAST_COUNT_FILE = '/workspace/last_trained_count.txt'
+        TRAIN_THRESHOLD = 5
+    }
+
+    stages {
+        stage('Incremental LoRA Training') {
+            steps {
+                sh '''
+                NEW_PROMPTS=$(jq '.train | length' $LOG_FILE)
+                if [ ! -f "$LAST_COUNT_FILE" ]; then
+                    echo "0" > $LAST_COUNT_FILE
+                fi
+                LAST_COUNT=$(cat $LAST_COUNT_FILE)
+                DIFF=$((NEW_PROMPTS - LAST_COUNT))
+
+                if [ $DIFF -ge $TRAIN_THRESHOLD ]; then
+                    echo "Training LoRA on $DIFF new prompts..."
+                    python3 /workspace/train_lora.py \
+                        --base_model $MODEL_PATH \
+                        --data $LOG_FILE \
+                        --output $LORA_PATH \
+                        --batch_size 1 \
+                        --epochs 3 \
+                        --fp16 \
+                        --last_count_file $LAST_COUNT_FILE
+
+                    echo $NEW_PROMPTS > $LAST_COUNT_FILE
+
+                    # Restart container to load new weights
+                    docker restart $DOCKER_CONTAINER
+                else
+                    echo "Not enough new prompts to trigger training."
+                fi
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Incremental LoRA training stage completed."
+        }
+        failure {
+            echo "Training failed. Check logs."
+        }
+    }
+}
