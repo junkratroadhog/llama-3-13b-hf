@@ -89,9 +89,13 @@ pipeline {
         stage('Test API') {
             steps {
                 sh """
-                    echo "Testing FastAPI endpoint..."
-                    sleep 10
-                    curl -f http://localhost:${API_PORT}/docs || (echo "API test failed" && exit 1)
+                echo "Waiting for FastAPI endpoint..."
+                for i in {1..30}; do
+                    curl -f http://localhost:${API_PORT}/docs && break
+                    echo "Waiting..."
+                    sleep 2
+                done
+                curl -f http://localhost:${API_PORT}/docs || (echo "API test failed" && exit 1)
                 """
             }
         }
