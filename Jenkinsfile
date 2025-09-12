@@ -5,13 +5,15 @@ pipeline {
         DOCKER_CONTAINER = 'llama13-server'
         MODEL_PATH = '/workspace/Llama-3-13b-hf'
         API_PORT = '11434'
+        GIT_REPO = 'https://github.com/junkratroadhog/llama-3-13b-hf.git'
+        GIT_BRANCH = 'main'
     }
 
     stages {
 
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://your-git-repo-url.git'
+                git branch:  ${env.GIT_BRANCH}, url: "${env.GIT_REPO}"
             }
         }
 
@@ -29,7 +31,7 @@ pipeline {
             steps {
                 sh '''
                 git lfs install
-                if [ ! -d "$MODEL_PATH" ]; then
+                if [ ! -d "$env.MODEL_PATH" ]; then
                     git clone https://huggingface.co/meta-llama/Llama-3-13b-hf $MODEL_PATH
                 fi
                 '''
