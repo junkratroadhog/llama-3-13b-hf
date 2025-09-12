@@ -10,28 +10,17 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
-                git branch:  "${env.GIT_BRANCH}", url: "${env.GIT_REPO}"
-            }
-        }
-
-        stage('Install Prerequisites') {
-            steps {
-                sh '''
-                sudo apt update && sudo apt upgrade -y
-                sudo apt install -y git python3 python3-pip build-essential curl
-                pip3 install --upgrade pip
-                '''
+                git branch: "${env.GIT_BRANCH}", url: "${env.GIT_REPO}"
             }
         }
 
         stage('Download LLaMA Model') {
             steps {
                 sh '''
-                git lfs install
-                if [ ! -d "$env.MODEL_PATH" ]; then
+                git lfs install || true
+                if [ ! -d "$MODEL_PATH" ]; then
                     git clone https://huggingface.co/meta-llama/Llama-3-13b-hf $MODEL_PATH
                 fi
                 '''
@@ -62,6 +51,7 @@ pipeline {
         stage('Test API') {
             steps {
                 sh """
+                sleep 5
                 curl -X POST http://localhost:$API_PORT/generate \
                      -H "Content-Type: application/json" \
                      -d '{"prompt": "Write a Python function to reverse a string."}'
@@ -72,10 +62,10 @@ pipeline {
 
     post {
         success {
-            echo "Deployment completed successfully!"
+            echo "🚀 Deployment completed successfully!"
         }
         failure {
-            echo "Deployment failed. Check logs."
+            echo "❌ Deployment failed. Check logs."
         }
     }
 }
