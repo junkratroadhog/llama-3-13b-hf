@@ -102,11 +102,13 @@ pipeline {
     }
     
     post {
+        cleanWs()
         success {
             echo "✅ Deployment succeeded!"
         }
         failure {
             echo "❌ Deployment failed. Check logs."
         }
+
     }
 }
