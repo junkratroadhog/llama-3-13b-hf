@@ -19,11 +19,6 @@ WORKDIR /workspace
 COPY requirements.txt /workspace/requirements.txt
 RUN pip3 install --no-cache-dir -r /workspace/requirements.txt
 
-# Download the LLaMA model during build (authenticated)
-RUN if [ ! -d "$MODEL_PATH" ]; then \
-        git clone https://user:${HF_TOKEN}@huggingface.co/meta-llama/Llama-3-13b-hf $MODEL_PATH; \
-    fi
-
 # Copy app server
 COPY app.py /workspace/app.py
 
