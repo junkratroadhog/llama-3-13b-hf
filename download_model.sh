@@ -1,15 +1,13 @@
 #!/bin/bash
 set -e
 
-MODEL_PATH="${MODEL_PATH:-/workspace/Llama-3-13b-hf}"
+MODEL_PATH="${MODEL_PATH:-/workspace/models/Llama-3-8B}"
 HF_TOKEN="${HF_TOKEN:?HF_TOKEN must be set}"
 
-git lfs install
+mkdir -p "$MODEL_PATH"
 
-if [ ! -d "$MODEL_PATH/.git" ]; then
-    echo "Cloning LLaMA repository with token..."
-    git clone https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct "$MODEL_PATH"
-fi
-
-cd "$MODEL_PATH"
-git lfs pull
+echo "Downloading quantized GGUF model..."
+huggingface-cli login --token $HF_TOKEN
+huggingface-cli download TheBloke/Meta-Llama-3-8B-Instruct-GGUF \
+  --include "Meta-Llama-3-8B-Instruct.Q4_K_M.gguf" \
+  --local-dir "$MODEL_PATH"
