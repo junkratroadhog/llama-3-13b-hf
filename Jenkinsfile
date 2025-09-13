@@ -1,117 +1,75 @@
 pipeline {
     agent any
 
+    parameters {
+        choice(name: 'MODE', choices: ['inference', 'training'], description: 'Run in inference (GGUF + llama.cpp) or training (HF + transformers)')
+        string(name: 'MODEL_PATH', defaultValue: '/workspace/models/Llama-3-8B', description: 'Model storage path')
+        string(name: 'HF_TOKEN', defaultValue: '', description: 'Hugging Face token (must have access to LLaMA models)')
+    }
+
     environment {
-        IMAGE_NAME      = "llama-fastapi"
-        CONTAINER_NAME  = "llama_api"
-        MODEL_PATH      = "/workspace/Llama-3-13b-hf"
-        API_PORT        = "11434"
-        NETWORK_NAME    = "llama_network"
-        VOLUME_NAME     = "llama_volume"
-        HF_TOKEN_ID     = "HF_TOKEN" // Jenkins credentials ID
+        HF_HOME = "${WORKSPACE}/.cache/huggingface"
     }
 
     stages {
 
-        stage('Cleanup Existing Deployment') {
+        stage('Setup Environment') {
             steps {
-                sh """
-                    # Remove existing container if exists
-                    if [ \$(docker ps -a -q -f name=${CONTAINER_NAME}) ]; then
-                        echo "Removing existing container ${CONTAINER_NAME}..."
-                        docker rm -f ${CONTAINER_NAME}
-                    fi
-
-                    # Remove Docker volume if exists
-                    if [ \$(docker volume ls -q -f name=${VOLUME_NAME}) ]; then
-                        echo "Removing existing volume ${VOLUME_NAME}..."
-                        docker volume rm ${VOLUME_NAME}
-                    fi
-
-                    # Remove Docker network if exists
-                    if [ \$(docker network ls -q -f name=${NETWORK_NAME}) ]; then
-                        echo "Removing existing network ${NETWORK_NAME}..."
-                        docker network rm ${NETWORK_NAME}
-                    fi
-
-                    # Recreate network and volume
-                    docker network create ${NETWORK_NAME} || true
-                    docker volume create ${VOLUME_NAME} || true
-                """
+                sh '''
+                  python3 -m venv venv
+                  . venv/bin/activate
+                  pip install --upgrade pip
+                  pip install -r requirements.txt
+                '''
             }
         }
 
-        stage('Checkout') {
+        stage('Download Model') {
             steps {
-                checkout scm
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh "docker build -t ${IMAGE_NAME} ."
-            }
-        }
-
-        stage('Download LLaMA Model') {
-            steps {
-                withCredentials([string(credentialsId: 'HF_TOKEN', variable: 'HF_TOKEN')]) {
-                    sh """
-                    docker run --rm \
-                        --gpus all \
-                        -v ${VOLUME_NAME}:${MODEL_PATH} \
-                        -e HF_TOKEN=$HF_TOKEN \
-                        ${IMAGE_NAME} \
-                        /workspace/download_model.sh
-                    """
+                withEnv(["HF_TOKEN=${params.HF_TOKEN}", "MODEL_PATH=${params.MODEL_PATH}", "MODE=${params.MODE}"]) {
+                    sh '''
+                      chmod +x download_model.sh
+                      ./download_model.sh
+                    '''
                 }
             }
         }
 
-        stage('Run Container') {
+        stage('Build llama.cpp (Inference Only)') {
+            when { expression { params.MODE == "inference" } }
             steps {
-                withCredentials([string(credentialsId: "${HF_TOKEN_ID}", variable: 'HF_TOKEN')]) {
-                    sh """
-                        docker run -d --gpus all \
-                            --name ${CONTAINER_NAME} \
-                            --network ${NETWORK_NAME} \
-                            -v ${VOLUME_NAME}:${MODEL_PATH} \
-                            -e HF_TOKEN=${HF_TOKEN} \
-                            -p ${API_PORT}:${API_PORT} \
-                            ${IMAGE_NAME}
-                    """
-                }
+                sh '''
+                  if [ ! -d llama.cpp ]; then
+                    git clone https://github.com/ggerganov/llama.cpp
+                  fi
+                  cd llama.cpp
+                  make
+                '''
             }
         }
 
-        stage('Wait for Model & API') {
+        stage('Run FastAPI Service') {
             steps {
-                sh """
-                    echo "Waiting for FastAPI endpoint..."
-                    for i in {1..60}; do
-                        if curl -sf http://localhost:${API_PORT}/docs; then
-                            echo "FastAPI is up!"
-                            break
-                        fi
-                        echo "Waiting..."
-                        sleep 5
-                    done
-                """
+                sh '''
+                  . venv/bin/activate
+                  if [ "${MODE}" = "inference" ]; then
+                      # Run via llama.cpp (subprocess in app.py)
+                      uvicorn app:app --host 0.0.0.0 --port 8000
+                  else
+                      # Run via Hugging Face transformers
+                      uvicorn app:app --host 0.0.0.0 --port 8000
+                  fi
+                '''
             }
         }
     }
 
     post {
-        success {
-            echo "✅ Deployment succeeded!"
-        }
-
-        failure {
-            echo "❌ Deployment failed. Check logs."
-        }
-
         always {
             cleanWs()
+        }
+        failure {
+            echo "❌ Deployment failed. Check logs."
         }
     }
 }
